@@ -8,22 +8,17 @@ async function createHubSpotContact(data) {
     return null;
   }
 
-  const properties = {
-    firstname:   data.name.split(' ')[0] || data.name,
-    lastname:    data.name.split(' ').slice(1).join(' ') || '',
-    email:       data.email,
-    phone:       data.phone || '',
-    company:     data.company,
-    country:     data.country,
-    // Custom HubSpot properties (create these in HubSpot settings)
-    csg_sector:  data.sector,
-    csg_service: data.service,
-    csg_lang:    data.lang,
-    csg_message: data.message || '',
-    lifecyclestage: 'lead',
-    hs_lead_status: 'NEW'
-  };
-
+const properties = {
+  firstname:      data.name.split(' ')[0] || data.name,
+  lastname:       data.name.split(' ').slice(1).join(' ') || '',
+  email:          data.email,
+  phone:          data.phone || '',
+  company:        data.company,
+  country:        data.country,
+  message:        data.message || '',
+  lifecyclestage: 'lead',
+  hs_lead_status: 'NEW'
+};
   try {
     // Try to create contact
     const res = await axios.post(
