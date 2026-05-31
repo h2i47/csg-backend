@@ -13,9 +13,9 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 app.use(helmet());
 
-// CORS — only allow your Netlify domain (and localhost for dev)
+// CORS — allow multiple origins (comma-separated in ALLOWED_ORIGINS)
 const allowedOrigins = [
-  process.env.ALLOWED_ORIGIN,
+  ...(process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGIN || '').split(',').map(o => o.trim()),
   'http://localhost:3000',
   'http://127.0.0.1:5500'
 ].filter(Boolean);
@@ -43,8 +43,6 @@ app.use(express.urlencoded({ extended: false }));
 app.get('/health', (_req, res) => res.json({ ok: true, env: process.env.NODE_ENV }));
 
 app.use('/api/contact', limiter, contactRoute);
-
-// GET /api/leads uses same router, no rate limit needed
 app.use('/api/leads', contactRoute);
 
 // 404
