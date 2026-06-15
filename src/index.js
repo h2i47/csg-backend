@@ -4,7 +4,9 @@ const cors    = require('cors');
 const helmet  = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { initDB } = require('./db/database');
+const { initPipeline } = require('./db/pipeline_schema');
 const contactRoute = require('./routes/contact');
+const pipelineRoute = require('./routes/pipeline_api');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -27,7 +29,7 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
     cb(new Error(`CORS blocked: ${origin}`));
   },
-  methods: ['GET','POST','OPTIONS'],
+  methods: ['GET','POST','PUT','OPTIONS'],
   allowedHeaders: ['Content-Type','x-admin-secret']
 }));
 
@@ -43,11 +45,13 @@ app.use(express.urlencoded({ extended: false }));
 app.get('/health', (_req, res) => res.json({ ok: true, env: process.env.NODE_ENV }));
 app.use('/api/contact', limiter, contactRoute);
 app.use('/api/leads', contactRoute);
+app.use('/api/pipeline', pipelineRoute);
 app.use((_req, res) => res.status(404).json({ ok: false, error: 'Not found' }));
 
 async function start() {
   try {
     await initDB();
+    await initPipeline();
     app.listen(PORT, () => console.log(`🚀 Running on port ${PORT}`));
   } catch (err) {
     console.error('❌ Failed to start:', err);
