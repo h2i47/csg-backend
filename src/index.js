@@ -15,6 +15,8 @@ app.use(helmet());
 const allowedOrigins = [
   'https://cscconsulting.site',
   'https://www.cscconsulting.site',
+  'https://licitaciones.cscconsulting.site',
+  'https://licitaciones-csg.netlify.app',
   'https://cscconsulting.netlify.app',
   'http://localhost:3000',
   'http://127.0.0.1:5500'
