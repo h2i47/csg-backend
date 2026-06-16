@@ -9,7 +9,9 @@ function baseUsuario(nombre, apellidos) {
   const limpiar = s => (s || '')
     .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '').trim();
-  return `${limpiar(nombre)}.${limpiar((apellidos || '').split(' ')[0])}`;
+  const n = limpiar(nombre);
+  const a = limpiar((apellidos || '').split(' ')[0]).slice(0, 12);  // 1er apellido (máx 12)
+  return `${n.slice(0, 1)}${a}`;   // inicial del nombre + primer apellido (ej. alorenzo)
 }
 async function usuarioUnico(base) {
   let u = base, n = 1;

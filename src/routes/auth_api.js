@@ -12,8 +12,9 @@ function generarUsuario(nombre, apellidos) {
     .replace(/[^a-z0-9]+/g, '')                          // solo letras/números
     .trim();
   const n = limpiar(nombre);
-  const a = limpiar((apellidos || '').split(' ')[0]);   // primer apellido
-  return `${n}.${a}`;
+  const a = limpiar((apellidos || '').split(' ')[0]).slice(0, 12);  // 1er apellido (máx 12)
+  const inicial = n.slice(0, 1);
+  return `${inicial}${a}`;   // inicial del nombre + primer apellido (ej. alorenzo)
 }
 
 /**
