@@ -9,6 +9,7 @@ const { initUsers } = require('./db/users_schema');
 const contactRoute = require('./routes/contact');
 const pipelineRoute = require('./routes/pipeline_api');
 const authRoute = require('./routes/auth_api');
+const usersRoute = require('./routes/users_api');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +47,7 @@ app.use(express.urlencoded({ extended: false }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, env: process.env.NODE_ENV }));
 app.use('/api/auth', limiter, authRoute);
+app.use('/api/users', usersRoute);
 app.use('/api/contact', limiter, contactRoute);
 app.use('/api/leads', contactRoute);
 app.use('/api/pipeline', pipelineRoute);

@@ -1,17 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/database');
+const { requireToken } = require('../auth/roles');
 
-/**
- * Protección temporal con x-admin-secret (hasta el login real de la Fase 4B).
- * Cuando exista auth con JWT, se sustituye este middleware por el de roles.
- */
-function requireAuth(req, res, next) {
-  if (req.headers['x-admin-secret'] !== process.env.ADMIN_SECRET) {
-    return res.status(401).json({ ok: false, error: 'No autorizado' });
-  }
-  next();
-}
+// Autenticación por token JWT (cualquier usuario logueado puede usar el pipeline).
+const requireAuth = requireToken;
 
 const ESTADOS_VALIDOS   = ['Nuevo','En análisis','Oferta enviada','Ganada','Perdida','Descartada'];
 const PRIORIDADES_VALIDAS = ['Alta','Media','Baja'];
@@ -47,7 +40,9 @@ router.put('/:id', requireAuth, async (req, res) => {
   const id = String(req.params.id || '').trim();
   if (!id) return res.status(400).json({ ok: false, error: 'Falta licitacion_id' });
 
-  const { estado, prioridad, nota, responsable, extra, actualizado_por } = req.body || {};
+  const { estado, prioridad, nota, responsable, extra } = req.body || {};
+  // La autoría sale del token (no se fía de lo que mande el frontend)
+  const actualizado_por = req.user.usuario;
 
   // Validaciones suaves (no bloquean si no llega el campo)
   if (estado && !ESTADOS_VALIDOS.includes(estado))
