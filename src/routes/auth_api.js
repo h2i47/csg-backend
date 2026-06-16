@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
     res.json({
       ok: true,
       token,
-      user: { id: user.id, usuario: user.usuario, nombre: user.nombre, apellidos: user.apellidos, rol: user.rol }
+      user: { id: user.id, usuario: user.usuario, nombre: user.nombre, apellidos: user.apellidos, email: user.email, rol: user.rol }
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -116,6 +116,65 @@ router.post('/cambiar-password', requireToken, async (req, res) => {
   } catch (err) {
     console.error('Cambiar password error:', err);
     res.status(500).json({ ok: false, error: 'Error al cambiar la contraseña' });
+  }
+});
+
+/**
+ * GET /api/auth/yo — devuelve los datos frescos del usuario del token.
+ * Útil para "Mi cuenta" cuando la sesión local no tiene todos los campos.
+ */
+router.get('/yo', requireToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, usuario, email, nombre, apellidos, rol FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (!rows[0]) return res.status(404).json({ ok: false, error: 'Usuario no encontrado' });
+    res.json({ ok: true, user: rows[0] });
+  } catch (err) {
+    console.error('Yo error:', err);
+    res.status(500).json({ ok: false, error: 'Error' });
+  }
+});
+
+/**
+ * PATCH /api/auth/mi-cuenta
+ * El usuario edita SUS PROPIOS datos personales: nombre, apellidos, email.
+ * NO permite cambiar usuario, rol ni activo (eso es cosa de la gestión de usuarios).
+ * Body: { nombre?, apellidos?, email? }
+ */
+router.patch('/mi-cuenta', requireToken, async (req, res) => {
+  const { nombre, apellidos, email } = req.body || {};
+  const sets = [], vals = [];
+  let i = 1;
+  if (nombre !== undefined) {
+    if (!String(nombre).trim()) return res.status(400).json({ ok: false, error: 'El nombre no puede estar vacío' });
+    sets.push(`nombre = $${i++}`); vals.push(String(nombre).trim());
+  }
+  if (apellidos !== undefined) {
+    if (!String(apellidos).trim()) return res.status(400).json({ ok: false, error: 'Los apellidos no pueden estar vacíos' });
+    sets.push(`apellidos = $${i++}`); vals.push(String(apellidos).trim());
+  }
+  if (email !== undefined) {
+    const e = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return res.status(400).json({ ok: false, error: 'Email no válido' });
+    sets.push(`email = $${i++}`); vals.push(e);
+  }
+  if (!sets.length) return res.status(400).json({ ok: false, error: 'Nada que actualizar' });
+
+  sets.push(`updated_at = NOW()`);
+  vals.push(req.user.id);
+  try {
+    const { rows } = await pool.query(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${i}
+       RETURNING id, usuario, email, nombre, apellidos, rol`,
+      vals
+    );
+    res.json({ ok: true, user: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ ok: false, error: 'Ese email ya está en uso' });
+    console.error('Mi-cuenta error:', err);
+    res.status(500).json({ ok: false, error: 'Error al actualizar tus datos' });
   }
 });
 

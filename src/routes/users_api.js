@@ -104,11 +104,20 @@ router.patch('/:id', requireToken, requireNivel('admin'), async (req, res) => {
       return res.status(403).json({ ok: false, error: 'No puedes modificar tu propia cuenta aquí' });
     }
 
-    const { activo, rol, password } = req.body || {};
+    const { activo, rol, password, usuario } = req.body || {};
     const sets = [], vals = [];
     let i = 1;
 
     if (typeof activo === 'boolean') { sets.push(`activo = $${i++}`); vals.push(activo); }
+
+    if (usuario !== undefined) {
+      const u = String(usuario).trim().toLowerCase().replace(/\s+/g, '');
+      if (u.length < 3) return res.status(400).json({ ok: false, error: 'El usuario debe tener al menos 3 caracteres' });
+      // Comprobar que no lo tenga otro
+      const { rows: ex } = await pool.query('SELECT 1 FROM users WHERE usuario = $1 AND id <> $2', [u, id]);
+      if (ex.length) return res.status(409).json({ ok: false, error: 'Ese usuario ya existe' });
+      sets.push(`usuario = $${i++}`); vals.push(u);
+    }
 
     if (rol !== undefined) {
       // El nuevo rol también debe estar por debajo del actor (y no 'super')
