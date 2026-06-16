@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/database');
-const { requireToken } = require('../auth/roles');
+const { requireToken, nivelDe } = require('../auth/roles');
 
 // Autenticación por token JWT (cualquier usuario logueado puede usar el pipeline).
 const requireAuth = requireToken;
 
 const ESTADOS_VALIDOS   = ['Nuevo','En análisis','Oferta enviada','Ganada','Perdida','Descartada'];
 const PRIORIDADES_VALIDAS = ['Alta','Media','Baja'];
+// Orden de fases para detectar transición desde "Nuevo"
+const ORDEN_FASE = { 'Nuevo':0, 'En análisis':1, 'Oferta enviada':2, 'Ganada':3, 'Perdida':3, 'Descartada':3 };
 
 /**
  * GET /api/pipeline
@@ -41,16 +43,47 @@ router.put('/:id', requireAuth, async (req, res) => {
   if (!id) return res.status(400).json({ ok: false, error: 'Falta licitacion_id' });
 
   const { estado, prioridad, nota, responsable, extra } = req.body || {};
-  // La autoría sale del token (no se fía de lo que mande el frontend)
   const actualizado_por = req.user.usuario;
+  const esAdmin = nivelDe(req.user.rol) >= nivelDe('admin');
 
-  // Validaciones suaves (no bloquean si no llega el campo)
   if (estado && !ESTADOS_VALIDOS.includes(estado))
     return res.status(400).json({ ok: false, error: 'Estado no válido' });
   if (prioridad && !PRIORIDADES_VALIDAS.includes(prioridad))
     return res.status(400).json({ ok: false, error: 'Prioridad no válida' });
 
   try {
+    // Estado actual de la licitación (para aplicar reglas de permisos)
+    const { rows: prev } = await pool.query(
+      'SELECT estado, responsable FROM pipeline_estados WHERE licitacion_id = $1', [id]
+    );
+    const actual = prev[0] || { estado: 'Nuevo', responsable: null };
+    const esResponsable = actual.responsable && actual.responsable === req.user.usuario;
+
+    // --- REGLA 1: salir de "Nuevo" hacia valoración solo admin+ ---
+    if (estado && estado !== actual.estado) {
+      const saleDeNuevo = actual.estado === 'Nuevo' && ORDEN_FASE[estado] > 0;
+      if (saleDeNuevo && !esAdmin) {
+        return res.status(403).json({ ok: false, error: 'Solo un administrador puede pasar una licitación a valoración' });
+      }
+      // --- REGLA 2: una vez en valoración, solo el responsable o admin+ pueden moverla ---
+      if (actual.estado !== 'Nuevo' && !esAdmin && !esResponsable) {
+        return res.status(403).json({ ok: false, error: 'Solo el responsable o un administrador pueden modificar esta licitación' });
+      }
+    }
+
+    // --- REGLA 3: asignar/cambiar responsable solo admin+ ---
+    let responsableFinal = responsable;
+    if (responsable !== undefined && responsable !== null && !esAdmin) {
+      return res.status(403).json({ ok: false, error: 'Solo un administrador puede asignar el responsable' });
+    }
+
+    // --- Para nota/prioridad/extra en licitación ya en valoración: responsable o admin ---
+    if (actual.estado !== 'Nuevo' && (nota !== undefined || prioridad !== undefined || extra !== undefined) && estado === undefined) {
+      if (!esAdmin && !esResponsable) {
+        return res.status(403).json({ ok: false, error: 'Solo el responsable o un administrador pueden modificar esta licitación' });
+      }
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO pipeline_estados
          (licitacion_id, estado, prioridad, nota, responsable, extra, actualizado_por, updated_at)
@@ -74,7 +107,7 @@ router.put('/:id', requireAuth, async (req, res) => {
         estado || null,
         prioridad || null,
         nota ?? null,
-        responsable ?? null,
+        responsableFinal ?? null,
         extra ? JSON.stringify(extra) : null,
         actualizado_por ?? null
       ]

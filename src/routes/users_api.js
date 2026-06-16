@@ -27,6 +27,24 @@ async function usuarioUnico(base) {
  * Cada uno ve a todos, pero el frontend solo ofrece acciones sobre inferiores.
  * (La verdad la impone el backend en cada operación.)
  */
+/**
+ * GET /api/users/lista — lista ligera de usuarios activos (id, nombre, usuario).
+ * Accesible a cualquier usuario con token (para poblar el desplegable de responsable).
+ * No expone datos sensibles.
+ */
+router.get('/lista', requireToken, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, usuario, nombre, apellidos, rol FROM users WHERE activo = true
+       ORDER BY nombre ASC`
+    );
+    res.json({ ok: true, users: rows });
+  } catch (err) {
+    console.error('Users lista error:', err);
+    res.status(500).json({ ok: false, error: 'Error al listar' });
+  }
+});
+
 router.get('/', requireToken, requireNivel('admin'), async (_req, res) => {
   try {
     const { rows } = await pool.query(
