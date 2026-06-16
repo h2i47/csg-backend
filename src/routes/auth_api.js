@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db/database');
-const { firmarToken } = require('../auth/roles');
+const { firmarToken, requireToken } = require('../auth/roles');
 
 /** Normaliza nombre+apellido en un usuario tipo "nombre.apellido" sin acentos. */
 function generarUsuario(nombre, apellidos) {
@@ -86,6 +86,64 @@ router.post('/seed', async (req, res) => {
   } catch (err) {
     console.error('Seed error:', err);
     res.status(500).json({ ok: false, error: 'Error al crear el usuario inicial' });
+  }
+});
+
+/**
+ * POST /api/auth/cambiar-password
+ * Cualquier usuario cambia SU PROPIA contraseña. Requiere token + contraseña actual.
+ * Body: { actual, nueva }
+ */
+router.post('/cambiar-password', requireToken, async (req, res) => {
+  const { actual, nueva } = req.body || {};
+  if (!actual || !nueva) {
+    return res.status(400).json({ ok: false, error: 'Faltan la contraseña actual y la nueva' });
+  }
+  if (String(nueva).length < 8) {
+    return res.status(400).json({ ok: false, error: 'La nueva contraseña debe tener al menos 8 caracteres' });
+  }
+  try {
+    const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ ok: false, error: 'Usuario no encontrado' });
+
+    const ok = await bcrypt.compare(actual, user.password_hash);
+    if (!ok) return res.status(401).json({ ok: false, error: 'La contraseña actual no es correcta' });
+
+    const hash = await bcrypt.hash(nueva, 12);
+    await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, user.id]);
+    res.json({ ok: true, message: 'Contraseña actualizada' });
+  } catch (err) {
+    console.error('Cambiar password error:', err);
+    res.status(500).json({ ok: false, error: 'Error al cambiar la contraseña' });
+  }
+});
+
+/**
+ * POST /api/auth/reset-super  — SALVAVIDAS de emergencia.
+ * Resetea SOLO la contraseña del usuario 'super' existente. Protegido con x-admin-secret.
+ * NO borra usuarios ni toca a los demás. Se llama por consola si se olvida la clave del super.
+ * Body: { nueva }
+ */
+router.post('/reset-super', async (req, res) => {
+  if (req.headers['x-admin-secret'] !== process.env.ADMIN_SECRET) {
+    return res.status(401).json({ ok: false, error: 'No autorizado' });
+  }
+  const { nueva } = req.body || {};
+  if (!nueva || String(nueva).length < 8) {
+    return res.status(400).json({ ok: false, error: 'La nueva contraseña debe tener al menos 8 caracteres' });
+  }
+  try {
+    const { rows } = await pool.query("SELECT id, usuario FROM users WHERE rol = 'super' LIMIT 1");
+    const sup = rows[0];
+    if (!sup) return res.status(404).json({ ok: false, error: 'No hay usuario super. Usa /api/auth/seed.' });
+
+    const hash = await bcrypt.hash(nueva, 12);
+    await pool.query('UPDATE users SET password_hash = $1, activo = true, updated_at = NOW() WHERE id = $2', [hash, sup.id]);
+    res.json({ ok: true, message: `Contraseña del super (${sup.usuario}) restablecida.` });
+  } catch (err) {
+    console.error('Reset super error:', err);
+    res.status(500).json({ ok: false, error: 'Error al restablecer' });
   }
 });
 
