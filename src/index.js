@@ -5,8 +5,10 @@ const helmet  = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { initDB } = require('./db/database');
 const { initPipeline } = require('./db/pipeline_schema');
+const { initUsers } = require('./db/users_schema');
 const contactRoute = require('./routes/contact');
 const pipelineRoute = require('./routes/pipeline_api');
+const authRoute = require('./routes/auth_api');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -30,7 +32,7 @@ app.use(cors({
     cb(new Error(`CORS blocked: ${origin}`));
   },
   methods: ['GET','POST','PUT','OPTIONS'],
-  allowedHeaders: ['Content-Type','x-admin-secret']
+  allowedHeaders: ['Content-Type','x-admin-secret','Authorization']
 }));
 
 const limiter = rateLimit({
@@ -43,6 +45,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
 
 app.get('/health', (_req, res) => res.json({ ok: true, env: process.env.NODE_ENV }));
+app.use('/api/auth', limiter, authRoute);
 app.use('/api/contact', limiter, contactRoute);
 app.use('/api/leads', contactRoute);
 app.use('/api/pipeline', pipelineRoute);
@@ -52,6 +55,7 @@ async function start() {
   try {
     await initDB();
     await initPipeline();
+    await initUsers();
     app.listen(PORT, () => console.log(`🚀 Running on port ${PORT}`));
   } catch (err) {
     console.error('❌ Failed to start:', err);
