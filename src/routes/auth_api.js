@@ -145,7 +145,7 @@ router.get('/yo', requireToken, async (req, res) => {
  * Body: { nombre?, apellidos?, email? }
  */
 router.patch('/mi-cuenta', requireToken, async (req, res) => {
-  const { nombre, apellidos, email } = req.body || {};
+  const { nombre, apellidos, email, usuario } = req.body || {};
   const sets = [], vals = [];
   let i = 1;
   if (nombre !== undefined) {
@@ -160,6 +160,17 @@ router.patch('/mi-cuenta', requireToken, async (req, res) => {
     const e = String(email).trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return res.status(400).json({ ok: false, error: 'Email no válido' });
     sets.push(`email = $${i++}`); vals.push(e);
+  }
+  // Solo el super puede cambiar su propio nombre de usuario
+  if (usuario !== undefined) {
+    if (req.user.rol !== 'super') {
+      return res.status(403).json({ ok: false, error: 'Solo el propietario puede cambiar su nombre de usuario' });
+    }
+    const u = String(usuario).trim().toLowerCase().replace(/\s+/g, '');
+    if (u.length < 3) return res.status(400).json({ ok: false, error: 'El usuario debe tener al menos 3 caracteres' });
+    const { rows: ex } = await pool.query('SELECT 1 FROM users WHERE usuario = $1 AND id <> $2', [u, req.user.id]);
+    if (ex.length) return res.status(409).json({ ok: false, error: 'Ese usuario ya existe' });
+    sets.push(`usuario = $${i++}`); vals.push(u);
   }
   if (!sets.length) return res.status(400).json({ ok: false, error: 'Nada que actualizar' });
 
