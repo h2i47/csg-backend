@@ -5,7 +5,7 @@ const helmet  = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { initDB } = require('./db/database');
 const { initPipeline } = require('./db/pipeline_schema');
-const { initUsers } = require('./db/users_schema');
+const { initUsers } = require('./db/users_schema');const { initActividad } = require('./db/actividad_schema');
 const contactRoute = require('./routes/contact');
 const pipelineRoute = require('./routes/pipeline_api');
 const authRoute = require('./routes/auth_api');
@@ -58,6 +58,7 @@ async function start() {
     await initDB();
     await initPipeline();
     await initUsers();
+    await initActividad();
     app.listen(PORT, () => console.log(`🚀 Running on port ${PORT}`));
   } catch (err) {
     console.error('❌ Failed to start:', err);

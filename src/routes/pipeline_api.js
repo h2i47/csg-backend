@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/database');
 const { requireToken, nivelDe } = require('../auth/roles');
+const { registrarActividad } = require('../db/actividad_schema');
 
 // Autenticación por token JWT (cualquier usuario logueado puede usar el pipeline).
 const requireAuth = requireToken;
@@ -112,10 +113,49 @@ router.put('/:id', requireAuth, async (req, res) => {
         actualizado_por ?? null
       ]
     );
+
+    // --- Bitácora: registrar eventos relevantes (no bloquea si falla) ---
+    const u = req.user.usuario;
+    const esNuevoRegistro = prev.length === 0;
+    if (esNuevoRegistro) {
+      registrarActividad(id, u, 'alta', 'Entró en el pipeline');
+    }
+    if (estado && estado !== actual.estado) {
+      registrarActividad(id, u, 'estado', `Estado: ${actual.estado} → ${estado}`);
+    }
+    if (responsable !== undefined && responsable !== (actual.responsable || null)) {
+      const txt = responsable ? `Responsable asignado: ${responsable}` : 'Responsable retirado';
+      registrarActividad(id, u, 'responsable', txt);
+    }
+    if (extra && extra.anomalia_fecha && actual.estado === 'Nuevo') {
+      // anomalía marcada al salir de "Nuevo"
+      registrarActividad(id, u, 'anomalia', 'Continuó con anomalía de fecha bajo responsabilidad');
+    }
+
     res.json({ ok: true, estado: rows[0] });
   } catch (err) {
     console.error('Pipeline PUT error:', err);
     res.status(500).json({ ok: false, error: 'Error al guardar' });
+  }
+});
+
+/**
+ * GET /api/pipeline/:id/actividad — historial de eventos de una licitación.
+ */
+router.get('/:id/actividad', requireAuth, async (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ ok: false, error: 'Falta licitacion_id' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT usuario, accion, detalle, created_at
+       FROM actividad WHERE licitacion_id = $1
+       ORDER BY created_at DESC LIMIT 100`,
+      [id]
+    );
+    res.json({ ok: true, actividad: rows });
+  } catch (err) {
+    console.error('Actividad GET error:', err);
+    res.status(500).json({ ok: false, error: 'Error al leer la actividad' });
   }
 });
 
