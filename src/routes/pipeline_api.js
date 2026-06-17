@@ -98,7 +98,7 @@ router.put('/:id', requireAuth, async (req, res) => {
          prioridad       = COALESCE(EXCLUDED.prioridad, pipeline_estados.prioridad),
          nota            = COALESCE(EXCLUDED.nota, pipeline_estados.nota),
          responsable     = COALESCE(EXCLUDED.responsable, pipeline_estados.responsable),
-         extra           = COALESCE(EXCLUDED.extra, pipeline_estados.extra),
+         extra           = COALESCE(pipeline_estados.extra, '{}'::jsonb) || COALESCE(EXCLUDED.extra, '{}'::jsonb),
          actualizado_por = COALESCE(EXCLUDED.actualizado_por, pipeline_estados.actualizado_por),
          updated_at      = NOW()
        RETURNING *`,
