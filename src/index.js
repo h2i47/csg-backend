@@ -5,11 +5,14 @@ const helmet  = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { initDB } = require('./db/database');
 const { initPipeline } = require('./db/pipeline_schema');
-const { initUsers } = require('./db/users_schema');const { initActividad } = require('./db/actividad_schema');
+const { initUsers } = require('./db/users_schema');
+const { initActividad } = require('./db/actividad_schema');
+const { initDocumentos } = require('./db/documentos_schema');
 const contactRoute = require('./routes/contact');
 const pipelineRoute = require('./routes/pipeline_api');
 const authRoute = require('./routes/auth_api');
 const usersRoute = require('./routes/users_api');
+const documentosRoute = require('./routes/documentos_api');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +51,7 @@ app.use(express.urlencoded({ extended: false }));
 app.get('/health', (_req, res) => res.json({ ok: true, env: process.env.NODE_ENV }));
 app.use('/api/auth', limiter, authRoute);
 app.use('/api/users', usersRoute);
+app.use('/api/documentos', documentosRoute);
 app.use('/api/contact', limiter, contactRoute);
 app.use('/api/leads', contactRoute);
 app.use('/api/pipeline', pipelineRoute);
@@ -59,6 +63,7 @@ async function start() {
     await initPipeline();
     await initUsers();
     await initActividad();
+    await initDocumentos();
     app.listen(PORT, () => console.log(`🚀 Running on port ${PORT}`));
   } catch (err) {
     console.error('❌ Failed to start:', err);
